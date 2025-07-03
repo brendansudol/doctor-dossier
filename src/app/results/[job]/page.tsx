@@ -1,22 +1,34 @@
 "use client"
 
+import { use } from "react"
 import useSWR from "swr"
 
-export default async function Results({ params }: { params: { job: string } }) {
-  const { data, error } = useSWR(`/api/healthscribe/status?jobName=${params.job}`, (url) =>
-    fetch(url).then((r) => r.json())
-  )
+interface Props {
+  params: Promise<{ job: string }>
+}
 
-  if (!data || data.status !== "COMPLETED") return <p>Status: {data?.status ?? "Loading…"}</p>
+export default function Results({ params }: Props) {
+  const { job } = use(params)
+  const statusUrl = `/api/healthscribe/status?jobName=${job}`
+
+  // dynamic refresh – 5 s until COMPLETED, then 0 ms (stop)
+  const { data, error } = useSWR(statusUrl, fetcher, {
+    refreshInterval: (data: any) => (!data || data.status !== "COMPLETED" ? 5_000 : 0),
+    revalidateOnFocus: false, // don’t restart on tab switch
+  })
+
   if (error) return <p>Something went wrong.</p>
+  if (!data || data.status !== "COMPLETED") return <p>Status: {data?.status ?? "Loading…"}</p>
 
   return (
     <>
-      <h2>Transcript</h2>
-      <pre>{await fetch(data.transcriptUrl).then((r) => r.text())}</pre>
+      <h2>Transcript JSON</h2>
+      <pre>{JSON.stringify(data.transcript, null, 2)}</pre>
 
-      <h2>Clinical notes (draft)</h2>
-      <pre>{await fetch(data.clinicalNotesUrl).then((r) => r.text())}</pre>
+      <h2>Clinical notes JSON</h2>
+      <pre>{JSON.stringify(data.clinicalNotes, null, 2)}</pre>
     </>
   )
 }
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json())

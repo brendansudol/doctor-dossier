@@ -1,12 +1,13 @@
+import { NextRequest } from "next/server"
 import { TranscribeClient, GetMedicalScribeJobCommand } from "@aws-sdk/client-transcribe"
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3"
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+import { S3Client } from "@aws-sdk/client-s3"
+import { presign } from "@/lib/presign"
 
 const tx = new TranscribeClient({ region: process.env.AWS_REGION })
 const s3 = new S3Client({ region: process.env.AWS_REGION })
 
-export async function GET(req: Request) {
-  const jobName = new URL(req.url).searchParams.get("jobName")!
+export async function GET(req: NextRequest) {
+  const jobName = req.nextUrl.searchParams.get("jobName")!
   const { MedicalScribeJob } = await tx.send(
     new GetMedicalScribeJobCommand({ MedicalScribeJobName: jobName })
   )
@@ -14,27 +15,26 @@ export async function GET(req: Request) {
   if (!MedicalScribeJob) return new Response("Not found", { status: 404 })
 
   if (MedicalScribeJob.MedicalScribeJobStatus !== "COMPLETED") {
-    return new Response(JSON.stringify({ status: MedicalScribeJob.MedicalScribeJobStatus }))
+    return Response.json({ status: MedicalScribeJob.MedicalScribeJobStatus })
   }
 
-  // The API returns S3 prefixes for the two JSON outputs
-  const { TranscriptFileUri, ClinicalDocumentUri } = MedicalScribeJob?.MedicalScribeOutput ?? {}
+  const out = MedicalScribeJob.MedicalScribeOutput!
+  const transcriptUrl = await presign(out.TranscriptFileUri)
+  const clinicalUrl = await presign(out.ClinicalDocumentUri)
 
-  const presign = async (uri?: string) => {
-    if (!uri) return null
-    const { hostname, pathname } = new URL(uri)
-    const bucket = hostname.split(".")[0]
-    const key = pathname.slice(1)
-    return getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key }), {
-      expiresIn: 900,
-    })
+  // Download both objects server‑side
+  const fetchS3 = async (url: string) => {
+    return fetch(url).then((r) => (r.ok ? r.json() : Promise.reject("S3 download failed")))
   }
 
-  return new Response(
-    JSON.stringify({
-      status: "COMPLETED",
-      transcriptUrl: await presign(TranscriptFileUri),
-      clinicalNotesUrl: await presign(ClinicalDocumentUri),
-    })
-  )
+  const [transcript, clinicalNotes] = await Promise.all([
+    transcriptUrl ? fetchS3(transcriptUrl) : null,
+    clinicalUrl ? fetchS3(clinicalUrl) : null,
+  ])
+
+  return Response.json({
+    status: "COMPLETED",
+    transcript,
+    clinicalNotes,
+  })
 }
