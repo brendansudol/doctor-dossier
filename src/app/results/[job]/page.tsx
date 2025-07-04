@@ -10,12 +10,13 @@ interface Props {
 export default function Results({ params }: Props) {
   const { job } = use(params)
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [ontologies, setOntologies] = useState<any | null>(null)
   const [loadingCodes, setLoadingCodes] = useState(false)
 
   // dynamic refresh – 5 s until COMPLETED, then 0 ms (stop)
   const { data, error } = useSWR(`/api/healthscribe/status?jobName=${job}`, fetcher, {
-    refreshInterval: (data: any) => (!data || data.status !== "COMPLETED" ? 5_000 : 0),
+    refreshInterval: (data) => (!data || data.status !== "COMPLETED" ? 5_000 : 0),
     revalidateOnFocus: false, // don’t restart on tab switch
   })
 
@@ -55,6 +56,7 @@ export default function Results({ params }: Props) {
                 <h3 className="uppercase font-medium">{ns}</h3>
                 <ul className="list-disc ml-4">
                   {ontologies[ns].length === 0 && <li className="italic">none</li>}
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   {ontologies[ns].map((c: any) => (
                     <li key={c.code}>
                       {c.code} – {c.desc} ({c.score})

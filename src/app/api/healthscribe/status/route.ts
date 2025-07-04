@@ -1,10 +1,8 @@
 import { NextRequest } from "next/server"
 import { TranscribeClient, GetMedicalScribeJobCommand } from "@aws-sdk/client-transcribe"
-import { S3Client } from "@aws-sdk/client-s3"
 import { presign } from "@/lib/presign"
 
 const tx = new TranscribeClient({ region: process.env.AWS_REGION })
-const s3 = new S3Client({ region: process.env.AWS_REGION })
 
 export async function GET(req: NextRequest) {
   const jobName = req.nextUrl.searchParams.get("jobName")!
