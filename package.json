@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@aws-sdk/client-comprehendmedical": "^3.840.0",
     "@aws-sdk/client-s3": "^3.840.0",
     "@aws-sdk/client-transcribe": "^3.840.0",
     "@aws-sdk/s3-request-presigner": "^3.840.0",
